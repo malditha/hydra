@@ -492,20 +492,24 @@ def get_column_widths(matrix: List[List[str]]) -> List[int]:
 
 
 def _instantiate_class(
-    clazz: Type[Any], config: Union[ObjectConf, DictConfig], *args: Any, **kwargs: Any
+    clazz: Type[Any],
+    config: Union[ObjectConf, DictConfig],
+    recursive: bool,
+    *args: Any,
+    **kwargs: Any,
 ) -> Any:
-    # TODO: pull out to caller?
-    final_kwargs = _get_kwargs(config, **kwargs)
+    final_kwargs = _get_kwargs(config, recursive=recursive, **kwargs)
     return clazz(*args, **final_kwargs)
 
 
 def _call_callable(
     fn: Callable[..., Any],
     config: Union[ObjectConf, DictConfig],
+    recursive: bool,
     *args: Any,
     **kwargs: Any,
 ) -> Any:
-    final_kwargs = _get_kwargs(config, **kwargs)
+    final_kwargs = _get_kwargs(config, recursive=recursive, **kwargs)
     return fn(*args, **final_kwargs)
 
 
@@ -557,7 +561,11 @@ def _locate(path: str) -> Union[type, Callable[..., Any]]:
         raise ValueError(f"Invalid type ({type(obj)}) found for {path}")
 
 
-def _get_kwargs(config: Union[ObjectConf, DictConfig], **kwargs: Any) -> Any:
+def _get_kwargs(
+    config: Union[ObjectConf, DictConfig],
+    recursive: bool,
+    **kwargs: Any,
+) -> Any:
 
     if isinstance(config, ObjectConf):
         config = OmegaConf.structured(config)
@@ -603,6 +611,26 @@ def _get_kwargs(config: Union[ObjectConf, DictConfig], **kwargs: Any) -> Any:
 
     for k, v in passthrough.items():
         final_kwargs[k] = v
+
+    if recursive:
+        from hydra.utils import instantiate
+
+        for k, v in final_kwargs.items():
+            obj = None
+            if hasattr(v, "_target_"):
+                obj = instantiate(v, recursive=recursive)
+            elif OmegaConf.is_list(v):
+                # list
+                obj = [
+                    instantiate(x, recursive=recursive)
+                    for x in v
+                    if hasattr(x, "_target_")
+                ]
+            elif hasattr(v, "_target_"):
+                obj = instantiate(v, recursive=recursive)
+            if obj is not None:
+                final_kwargs[k] = obj
+
     return final_kwargs
 
 

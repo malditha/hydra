@@ -20,10 +20,11 @@ from hydra.types import TargetConf
 log = logging.getLogger(__name__)
 
 
-def call(config: Any, *args: Any, **kwargs: Any) -> Any:
+def call(config: Any, recursive=False, *args: Any, **kwargs: Any) -> Any:
     """
     :param config: An object describing what to call and what params to use.
                    Must have a _target_ field.
+    :param recursive: True to recursively initialize child objects
     :param args: optional positional parameters pass-through
     :param kwargs: optional named parameters pass-through
     :return: the return value from the specified class or method
@@ -60,10 +61,22 @@ def call(config: Any, *args: Any, **kwargs: Any) -> Any:
         cls = _get_cls_name(config)
         type_or_callable = _locate(cls)
         if isinstance(type_or_callable, type):
-            return _instantiate_class(type_or_callable, config, *args, **kwargs)
+            return _instantiate_class(
+                type_or_callable,
+                config,
+                recursive=recursive,
+                *args,
+                **kwargs,
+            )
         else:
             assert callable(type_or_callable)
-            return _call_callable(type_or_callable, config, *args, **kwargs)
+            return _call_callable(
+                type_or_callable,
+                config,
+                recursive=recursive,
+                *args,
+                **kwargs,
+            )
     except InstantiationException as e:
         raise e
     except Exception as e:

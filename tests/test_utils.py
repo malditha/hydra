@@ -20,9 +20,17 @@ from tests import (
     AnotherClass,
     ASubclass,
     BadAdamConf,
+    CenterCrop,
+    CenterCropConf,
+    Compose,
+    ComposeConf,
     IllegalType,
     NestingClass,
     Parameters,
+    Rotation,
+    RotationConf,
+    Tree,
+    TreeConf,
     UntypedPassthroughClass,
     UntypedPassthroughConf,
 )
@@ -541,4 +549,78 @@ def test_interpolation_accessing_parent_deprecated(
 ) -> Any:
     input_conf = OmegaConf.create(input_conf)
     obj = utils.instantiate(input_conf.node, **passthrough)
+    assert obj == expected
+
+
+@pytest.mark.parametrize(  # type: ignore
+    "cfg, passthrough, expected",
+    [
+        pytest.param(
+            ComposeConf(
+                transforms=[
+                    CenterCropConf(size=10),
+                    RotationConf(degrees=45),
+                ]
+            ),
+            {},
+            Compose(
+                transforms=[
+                    CenterCrop(size=10),
+                    Rotation(degrees=45),
+                ]
+            ),
+            id="recursive:compose:dataclass",
+        ),
+        pytest.param(
+            {
+                "_target_": "tests.Compose",
+                "transforms": [
+                    {"_target_": "tests.CenterCrop", "size": 10},
+                    {"_target_": "tests.Rotation", "degrees": 45},
+                ],
+            },
+            {},
+            Compose(
+                transforms=[
+                    CenterCrop(size=10),
+                    Rotation(degrees=45),
+                ]
+            ),
+            id="recursive:compose:dataclass",
+        ),
+        pytest.param(
+            {
+                "_target_": "tests.Tree",
+                "value": 1,
+                "left": {
+                    "_target_": "tests.Tree",
+                    "value": 21,
+                },
+                "right": {
+                    "_target_": "tests.Tree",
+                    "value": 22,
+                },
+            },
+            {},
+            Tree(value=1, left=Tree(value=21), right=Tree(value=22)),
+            id="recursive:tree:dict",
+        ),
+        pytest.param(
+            TreeConf(
+                value=1,
+                left=TreeConf(value=21),
+                right=TreeConf(value=22),
+            ),
+            {},
+            Tree(value=1, left=Tree(value=21), right=Tree(value=22)),
+            id="recursive:tree:dataclass",
+        ),
+    ],
+)
+def test_recursive_instantiation(
+    cfg: Any,
+    passthrough: Dict[str, Any],
+    expected: Any,
+) -> None:
+    obj = utils.instantiate(cfg, recursive=True, **passthrough)
     assert obj == expected
